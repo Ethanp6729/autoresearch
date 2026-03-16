@@ -29,28 +29,19 @@ Focus: authentication and authorization flows
 
 ## Interactive Setup (when invoked without flags)
 
-If `/autoresearch:security` is invoked without `--diff`, scope, or focus, use `AskUserQuestion` to gather context.
+If `/autoresearch:security` is invoked without `--diff`, scope, or focus, scan the codebase first (detect tech stack, API routes, auth patterns), then use `AskUserQuestion` with ALL questions batched.
 
-**Step 1 — Audit scope:**
-```
-Header: "Security Audit Setup"
-Question: "What should I audit?"
-Options: ["Entire codebase (comprehensive)", "API routes + middleware only", "Authentication + authorization", "External-facing code only", "Let me specify scope"]
-```
+**Single batched call — all 3 questions at once:**
 
-**Step 2 — Audit depth:**
-```
-Header: "Audit Depth"
-Question: "How thorough?"
-Options: ["Quick scan (5 iterations)", "Standard audit (15 iterations)", "Deep audit (30+ iterations)", "Unlimited (run until interrupted)"]
-```
+Use ONE `AskUserQuestion` call with all 3 questions:
 
-**Step 3 — After audit:**
-```
-Header: "After Findings"
-Question: "What should I do with confirmed vulnerabilities?"
-Options: ["Report only (read-only)", "Report + auto-fix Critical/High (--fix)", "Report + CI gate (--fail-on critical)"]
-```
+| # | Header | Question | Options (from codebase scan) |
+|---|--------|----------|------------------------------|
+| 1 | `Scope` | "What should I audit?" | "Entire codebase (comprehensive)", "API routes + middleware only", "Authentication + authorization", "External-facing code only" |
+| 2 | `Depth` | "How thorough?" | "Quick scan (5 iterations)", "Standard audit (15 iterations)", "Deep audit (30+ iterations)", "Unlimited" |
+| 3 | `Action` | "What should I do with confirmed vulnerabilities?" | "Report only (read-only)", "Report + auto-fix Critical/High", "Report + CI gate (fail on critical)" |
+
+**IMPORTANT:** Always ask all questions in a single call — never one at a time.
 
 If flags are provided inline, skip interactive setup and proceed directly.
 

@@ -268,52 +268,30 @@ When a loop count is specified:
 
 ### Interactive Setup (when invoked without full config)
 
-Use `AskUserQuestion` to gather each missing field. Scan the codebase first to provide smart defaults.
+Scan the codebase first for smart defaults, then ask ALL questions in batched `AskUserQuestion` calls (max 4 per call). This gives users full clarity upfront.
 
-**Question 1 — Goal** (always ask if not provided):
-```
-Header: "Autoresearch Setup"
-Question: "What do you want to improve?"
-Options: (leave empty — free text response)
-```
+**Batch 1 — Core config (4 questions in one call):**
 
-**Question 2 — Scope** (suggest based on codebase scan):
-```
-Header: "Scope"
-Question: "Which files can autoresearch modify?"
-Options: [suggested globs based on project structure, e.g. "src/**/*.ts", "content/**/*.md"]
-```
-Validate: glob must resolve to ≥1 file. If zero matches, ask again.
+Use a SINGLE `AskUserQuestion` call with these 4 questions:
 
-**Question 3 — Metric & Direction** (suggest based on tooling detected):
-```
-Header: "Metric"
-Question: "What number tells you if things got better? (must be mechanical — command output, not subjective)"
-Options: [detected options, e.g. "coverage % (higher)", "bundle size KB (lower)", "error count (lower)", "test pass count (higher)"]
-```
-Validate: must be extractable as a number from a command output.
+| # | Header | Question | Options (smart defaults from codebase scan) |
+|---|--------|----------|----------------------------------------------|
+| 1 | `Goal` | "What do you want to improve?" | "Test coverage (higher)", "Bundle size (lower)", "Performance (faster)", "Code quality (fewer errors)" |
+| 2 | `Scope` | "Which files can autoresearch modify?" | Suggested globs from project structure (e.g. "src/**/*.ts", "content/**/*.md") |
+| 3 | `Metric` | "What number tells you if it got better? (must be a command output, not subjective)" | Detected options: "coverage % (higher)", "bundle size KB (lower)", "error count (lower)", "test pass count (higher)" |
+| 4 | `Direction` | "Higher or lower is better?" | "Higher is better", "Lower is better" |
 
-**Question 4 — Verify Command** (construct and dry-run):
-```
-Header: "Verify Command"
-Question: "What command produces the metric? (I'll dry-run it to confirm)"
-Options: [suggested commands based on detected tooling, e.g. "npm test -- --coverage | grep 'All files'"]
-```
-Validate: dry-run the command. Must exit 0 and output a parseable number.
+**Batch 2 — Verify + Guard + Launch (3 questions in one call):**
 
-**Question 5 — Guard (optional)**:
-```
-Header: "Guard (optional)"
-Question: "Any command that must ALWAYS pass? (prevents regressions — leave blank to skip)"
-Options: ["npm test", "tsc --noEmit", "Skip — no guard"]
-```
+| # | Header | Question | Options |
+|---|--------|----------|---------|
+| 5 | `Verify` | "What command produces the metric? (I'll dry-run it to confirm)" | Suggested commands from detected tooling |
+| 6 | `Guard` | "Any command that must ALWAYS pass? (prevents regressions)" | "npm test", "tsc --noEmit", "npm run build", "Skip — no guard" |
+| 7 | `Launch` | "Ready to go?" | "Launch (unlimited)", "Launch with /loop N", "Edit config", "Cancel" |
 
-After collecting all fields, display the complete config and ask for confirmation:
-```
-Header: "Ready to Launch"
-Question: "Config looks good?"
-Options: ["Launch (unlimited)", "Launch with /loop N", "Edit config", "Cancel"]
-```
+**After Batch 2:** Dry-run the verify command. If it fails, ask user to fix or choose a different command. If it passes, proceed with launch choice.
+
+**IMPORTANT:** Always batch questions — never ask one at a time. Users should see all config choices together for full context.
 
 ### Setup Steps (after config is complete)
 

@@ -29,21 +29,19 @@ Destination: production
 
 ## Interactive Setup (when invoked without flags)
 
-If `/autoresearch:ship` is invoked without `--type` or target, use `AskUserQuestion` to identify what's being shipped.
+If `/autoresearch:ship` is invoked without `--type` or target, scan for staged changes, open PRs, and recent commits, then use `AskUserQuestion` with ALL questions batched.
 
-**Step 1 — What are you shipping?**
-```
-Header: "Ship Setup"
-Question: "What are you shipping?"
-Options: ["Code PR", "Release / version tag", "Deployment to production", "Blog post / documentation", "Marketing email / campaign", "Sales deck / proposal", "Research paper / report", "Design assets", "Let me describe it"]
-```
+**Single batched call — all 3 questions at once:**
 
-**Step 2 — Ship mode:**
-```
-Header: "Ship Mode"
-Question: "How should I ship it?"
-Options: ["Full workflow (checklist → dry-run → ship → verify)", "Dry-run only (validate without shipping)", "Checklist only (just check readiness)", "Auto-approve (ship if checklist passes)"]
-```
+Use ONE `AskUserQuestion` call with all 3 questions:
+
+| # | Header | Question | Options (from context scan) |
+|---|--------|----------|----------------------------|
+| 1 | `What` | "What are you shipping?" | "Code PR", "Release / version tag", "Deployment to production", "Blog post / documentation" |
+| 2 | `Mode` | "How should I ship it?" | "Full workflow (checklist → dry-run → ship → verify)", "Dry-run only (validate without shipping)", "Checklist only (just check readiness)", "Auto-approve (ship if checklist passes)" |
+| 3 | `Monitor` | "Post-ship monitoring?" | "No monitoring", "5 minutes", "10 minutes", "30 minutes" |
+
+**IMPORTANT:** Always ask all questions in a single call — never one at a time.
 
 If `--type`, `--dry-run`, `--auto`, or `--checklist-only` flags are provided, skip interactive setup and proceed directly.
 

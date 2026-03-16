@@ -27,28 +27,20 @@ Symptom: API returns 500 on POST /users
 
 ## Interactive Setup (when invoked without flags)
 
-If `/autoresearch:debug` is invoked without `--scope` or `--symptom`, use `AskUserQuestion` to gather context before investigating.
+If `/autoresearch:debug` is invoked without `--scope` or `--symptom`, use `AskUserQuestion` to gather full context in ONE batched call before investigating. Scan the codebase first (run tests, lint, typecheck) to detect existing failures and provide smart defaults.
 
-**Step 1 — What's wrong?**
-```
-Header: "Debug Setup"
-Question: "What's the issue? (describe the symptom, paste an error, or say 'hunt all bugs')"
-Options: ["Hunt all bugs (scan entire codebase)", "Specific error (I'll describe it)", "Failing tests", "CI/CD failure", "Performance issue"]
-```
+**Single batched call — all 4 questions at once:**
 
-**Step 2 — Scope:**
-```
-Header: "Investigation Scope"
-Question: "Which files should I investigate?"
-Options: [suggested globs based on error locations or project structure, "Entire codebase", "Let me specify"]
-```
+Use ONE `AskUserQuestion` call with all 4 questions:
 
-**Step 3 — After finding bugs, what to do?**
-```
-Header: "After Debugging"
-Question: "When bugs are found, should I also fix them?"
-Options: ["Find bugs only (report)", "Find and fix (chain to /autoresearch:fix)", "Ask me after each finding"]
-```
+| # | Header | Question | Options (from codebase scan) |
+|---|--------|----------|------------------------------|
+| 1 | `Issue` | "What's the problem?" | "Hunt all bugs (scan entire codebase)", "Specific error (I'll describe it)", "Failing tests", "CI/CD failure", "Performance issue" |
+| 2 | `Scope` | "Which files should I investigate?" | Suggested globs from project structure + "Entire codebase" |
+| 3 | `Depth` | "How deep should I investigate?" | "Quick scan (5 iterations)", "Standard (15 iterations)", "Deep investigation (30+)", "Unlimited" |
+| 4 | `After` | "When bugs are found, should I also fix them?" | "Find bugs only (report)", "Find and fix (chain to /autoresearch:fix)", "Ask me after each finding" |
+
+**IMPORTANT:** Always ask all 4 questions in a single call — never one at a time. Users need full context to make informed decisions.
 
 If `--scope`, `--symptom`, or `--fix` flags are provided, skip the interactive setup and proceed directly to Phase 1.
 

@@ -28,36 +28,22 @@ Guard: npm run typecheck
 
 ## Interactive Setup (when invoked without flags)
 
-If `/autoresearch:fix` is invoked without explicit `--target`, `--guard`, or `--scope`, use `AskUserQuestion` to confirm the fix strategy. First auto-detect failures, then present findings.
+If `/autoresearch:fix` is invoked without explicit `--target`, `--guard`, or `--scope`, first auto-detect all failures (run tests, typecheck, lint, build), then use `AskUserQuestion` with ALL questions batched in a single call.
 
-**Step 1 — Auto-detect and present:**
-Run test suite, type checker, linter, and build. Then ask:
-```
-Header: "Fix Setup — Detected Issues"
-Question: "Found [N] test failures, [M] type errors, [K] lint errors. What should I fix?"
-Options: ["Fix everything (recommended)", "Only tests", "Only type errors", "Only lint", "Let me specify"]
-```
+**Pre-scan:** Run test suite, type checker, linter, and build to detect failures. Present summary in the first question.
 
-**Step 2 — Guard (if not specified):**
-```
-Header: "Regression Guard"
-Question: "What command must ALWAYS pass? (prevents fixes from breaking other things)"
-Options: ["npm test", "tsc --noEmit", "npm run build", "Skip — no guard", "Custom command"]
-```
+**Single batched call — all 4 questions at once:**
 
-**Step 3 — Scope (if not specified):**
-```
-Header: "Scope"
-Question: "Which files can I modify?"
-Options: ["All project files (src/**)", suggested globs from error locations, "Let me specify"]
-```
+Use ONE `AskUserQuestion` call with all 4 questions:
 
-**Step 4 — Confirm and launch:**
-```
-Header: "Ready to Fix"
-Question: "Target: [N] errors | Guard: [command] | Scope: [glob]. Start?"
-Options: ["Launch (fix until zero)", "Launch with /loop N", "Edit config", "Cancel"]
-```
+| # | Header | Question | Options (from auto-detection) |
+|---|--------|----------|-------------------------------|
+| 1 | `Fix What` | "Found [N] test failures, [M] type errors, [K] lint errors. What should I fix?" | "Fix everything (recommended)", "Only tests", "Only type errors", "Only lint" |
+| 2 | `Guard` | "What command must ALWAYS pass? (prevents fixes from breaking other things)" | "npm test", "tsc --noEmit", "npm run build", "Skip — no guard" |
+| 3 | `Scope` | "Which files can I modify?" | Suggested globs from error locations + "All project files" |
+| 4 | `Launch` | "Ready to fix?" | "Fix until zero errors", "Fix with /loop N", "Edit config", "Cancel" |
+
+**IMPORTANT:** Always ask all 4 questions in a single call — never one at a time. Users need the full picture (what's broken, what's the guard, what's the scope) to make informed decisions together.
 
 If the user provides `--target`, `--guard`, `--scope`, or `--from-debug` flags, skip the interactive setup and proceed directly to Phase 1.
 
