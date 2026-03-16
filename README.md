@@ -5,7 +5,7 @@
 Based on [Karpathy's autoresearch](https://github.com/karpathy/autoresearch) — the principle that **constraint + mechanical metric + autonomous iteration = compounding gains**.
 
 [![Claude Code Skill](https://img.shields.io/badge/Claude_Code-Skill-blue?logo=anthropic&logoColor=white)](https://docs.anthropic.com/en/docs/claude-code)
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/uditgoenka/autoresearch/releases)
+[![Version](https://img.shields.io/badge/version-1.1.1-blue.svg)](https://github.com/uditgoenka/autoresearch/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Based on](https://img.shields.io/badge/Based_on-Karpathy's_Autoresearch-orange)](https://github.com/karpathy/autoresearch)
 
@@ -231,15 +231,19 @@ Clone this repo and copy the skill to your Claude Code skills directory:
 # Clone
 git clone https://github.com/uditgoenka/autoresearch.git
 
-# Copy to your project's Claude Code skills
+# Copy skill + subcommands to your project's Claude Code directory
 cp -r autoresearch/skills/autoresearch .claude/skills/autoresearch
+cp -r autoresearch/commands/autoresearch .claude/commands/autoresearch
 ```
 
-Or copy directly into your global skills:
+Or copy directly into your global config:
 
 ```bash
 cp -r autoresearch/skills/autoresearch ~/.claude/skills/autoresearch
+cp -r autoresearch/commands/autoresearch ~/.claude/commands/autoresearch
 ```
+
+> **Note:** The `commands/` directory is required for subcommands (`/autoresearch:ship`, `/autoresearch:plan`, `/autoresearch:security`) to be recognized by Claude Code. Without it, only `/autoresearch` will work.
 
 ### 2. Invoke It
 

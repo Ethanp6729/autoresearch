@@ -1,7 +1,7 @@
 ---
 name: autoresearch
 description: Autonomous Goal-directed Iteration. Apply Karpathy's autoresearch principles to ANY task. Loops autonomously — modify, verify, keep/discard, repeat. Supports optional loop count via Claude Code's /loop command.
-version: 1.0.4
+version: 1.1.1
 ---
 
 # Claude Autoresearch — Autonomous Goal-directed Iteration
@@ -17,6 +17,7 @@ Inspired by [Karpathy's autoresearch](https://github.com/karpathy/autoresearch).
 | `/autoresearch` | Run the autonomous loop (default) |
 | `/autoresearch:plan` | Interactive wizard to build Scope, Metric, Direction & Verify from a Goal |
 | `/autoresearch:security` | Autonomous security audit: STRIDE threat model + OWASP Top 10 + red-team (4 adversarial personas) |
+| `/autoresearch:ship` | Universal shipping workflow: ship code, content, marketing, sales, research, or anything |
 
 ### /autoresearch:security — Autonomous Security Audit (v1.0.3)
 
@@ -82,6 +83,92 @@ Focus: authentication and authorization flows
 - OWASP Top 10 (2021) — industry-standard vulnerability taxonomy
 - STRIDE — Microsoft's threat modeling framework
 
+### /autoresearch:ship — Universal Shipping Workflow (v1.1.0)
+
+Ship anything — code, content, marketing, sales, research, or design — through a structured 8-phase workflow that applies autoresearch loop principles to the last mile.
+
+Load: `references/ship-workflow.md` for full protocol.
+
+**What it does:**
+
+1. **Identify** — auto-detect what you're shipping (code PR, deployment, blog post, email campaign, sales deck, research paper, design assets)
+2. **Inventory** — assess current state and readiness gaps
+3. **Checklist** — generate domain-specific pre-ship gates (all mechanically verifiable)
+4. **Prepare** — autoresearch loop to fix failing checklist items until 100% pass
+5. **Dry-run** — simulate the ship action without side effects
+6. **Ship** — execute the actual delivery (merge, deploy, publish, send)
+7. **Verify** — post-ship health check confirms it landed
+8. **Log** — record shipment to `ship-log.tsv` for traceability
+
+**Supported shipment types:**
+
+| Type | Example Ship Actions |
+|------|---------------------|
+| `code-pr` | `gh pr create` with full description |
+| `code-release` | Git tag + GitHub release |
+| `deployment` | CI/CD trigger, `kubectl apply`, push to deploy branch |
+| `content` | Publish via CMS, commit to content branch |
+| `marketing-email` | Send via ESP (SendGrid, Mailchimp) |
+| `marketing-campaign` | Activate ads, launch landing page |
+| `sales` | Send proposal, share deck |
+| `research` | Upload to repository, submit paper |
+| `design` | Export assets, share with stakeholders |
+
+**Flags:**
+
+| Flag | Purpose |
+|------|---------|
+| `--dry-run` | Validate everything but don't actually ship (stop at Phase 5) |
+| `--auto` | Auto-approve dry-run gate if no errors |
+| `--force` | Skip non-critical checklist items (blockers still enforced) |
+| `--rollback` | Undo the last ship action (if reversible) |
+| `--monitor N` | Post-ship monitoring for N minutes |
+| `--type <type>` | Override auto-detection with explicit shipment type |
+| `--checklist-only` | Only generate and evaluate checklist (stop at Phase 3) |
+
+**Usage:**
+```
+# Auto-detect and ship (interactive)
+/autoresearch:ship
+
+# Ship code PR with auto-approve
+/autoresearch:ship --auto
+
+# Dry-run a deployment before going live
+/autoresearch:ship --type deployment --dry-run
+
+# Ship with post-deployment monitoring
+/autoresearch:ship --monitor 10
+
+# Prepare iteratively then ship
+/loop 5 /autoresearch:ship
+
+# Just check if something is ready to ship
+/autoresearch:ship --checklist-only
+
+# Ship a blog post
+/autoresearch:ship
+Target: content/blog/my-new-post.md
+Type: content
+
+# Ship a sales deck
+/autoresearch:ship --type sales
+Target: decks/q1-proposal.pdf
+
+# Rollback a bad deployment
+/autoresearch:ship --rollback
+```
+
+**Composite metric (for bounded loops):**
+```
+ship_score = (checklist_passing / checklist_total) * 80
+           + (dry_run_passed ? 15 : 0)
+           + (no_blockers ? 5 : 0)
+```
+Score of 100 = fully ready. Below 80 = not shippable.
+
+**Output directory:** Creates `ship/{YYMMDD}-{HHMM}-{ship-slug}/` with `checklist.md`, `ship-log.tsv`, `summary.md`.
+
 ### /autoresearch:plan — Goal → Configuration Wizard
 
 Converts a plain-language goal into a validated, ready-to-execute autoresearch configuration.
@@ -122,6 +209,8 @@ After the wizard completes, the user gets a ready-to-paste `/autoresearch` invoc
 - User invokes `/autoresearch:security` → run the security audit
 - User says "help me set up autoresearch", "plan an autoresearch run" → run the planning wizard
 - User says "security audit", "threat model", "OWASP", "STRIDE", "find vulnerabilities", "red-team" → run the security audit
+- User invokes `/autoresearch:ship` → run the ship workflow
+- User says "ship it", "deploy this", "publish this", "launch this", "get this out the door" → run the ship workflow
 - User says "work autonomously", "iterate until done", "keep improving", "run overnight" → run the loop
 - Any task requiring repeated iteration cycles with measurable outcomes → run the loop
 
@@ -231,5 +320,6 @@ See `references/core-principles.md` for the 7 generalizable principles from auto
 | Performance | Benchmark time (ms) | Target files | `npm run bench` | `npm test` |
 | Refactoring | Tests pass + LOC reduced | Target module | `npm test && wc -l` | `npm run typecheck` |
 | Security | OWASP + STRIDE coverage + findings | API/auth/middleware | `/autoresearch:security` | — |
+| Shipping | Checklist pass rate (%) | Any artifact | `/autoresearch:ship` | Domain-specific |
 
 Adapt the loop to your domain. The PRINCIPLES are universal; the METRICS are domain-specific.
