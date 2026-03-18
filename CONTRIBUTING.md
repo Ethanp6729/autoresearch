@@ -32,8 +32,20 @@ cp -r commands/autoresearch ~/.claude/commands/autoresearch
 ```
 autoresearch/
 ├── README.md                                      ← Project overview + quick start
-├── GUIDE.md                                       ← Complete guide — installation to advanced chains
-├── EXAMPLES.md                                    ← Real-world examples by domain
+├── guide/                                         ← Comprehensive guides — one per command
+│   ├── README.md                                  ← Guide index
+│   ├── getting-started.md                         ← Installation, core concepts, FAQ
+│   ├── autoresearch.md                            ← The autonomous loop
+│   ├── autoresearch-plan.md                       ← Setup wizard
+│   ├── autoresearch-debug.md                      ← Bug hunter
+│   ├── autoresearch-fix.md                        ← Error crusher
+│   ├── autoresearch-security.md                   ← Security auditor
+│   ├── autoresearch-ship.md                       ← Shipping workflow
+│   ├── autoresearch-scenario.md                   ← Scenario explorer
+│   ├── autoresearch-predict.md                    ← Multi-persona swarm prediction
+│   ├── chains-and-combinations.md                 ← Multi-command pipelines
+│   ├── examples-by-domain.md                      ← Real-world examples by domain
+│   └── advanced-patterns.md                       ← Guards, MCP, CI/CD, FAQ
 ├── CONTRIBUTING.md                                ← You are here
 ├── LICENSE                                        ← MIT License
 ├── .claude-plugin/
@@ -85,8 +97,7 @@ autoresearch/
 | `commands/autoresearch/*.md` | Sub-command registration files. | Adding new sub-commands (creates the `/autoresearch:name` slash command) |
 | `.claude-plugin/plugin.json` | Plugin metadata + version. | Version bumps (use `scripts/release.sh`) |
 | `README.md` | Public overview, commands table, quick start. | Adding features, updating commands, documenting changes |
-| `GUIDE.md` | Comprehensive user guide with all domains and chains. | Adding scenarios, command combinations, advanced patterns |
-| `EXAMPLES.md` | Copy-paste examples organized by domain. | Adding real-world examples, new domain sections |
+| `guide/*.md` | Individual command guides, examples, advanced patterns. | Adding scenarios, command combinations, domain examples |
 
 ## What to Contribute
 
@@ -94,7 +105,7 @@ autoresearch/
 
 | Type | Examples | Difficulty |
 |------|----------|-----------|
-| **New domain examples** | Add to EXAMPLES.md or GUIDE.md | Easy |
+| **New domain examples** | Add to `guide/examples-by-domain.md` | Easy |
 | **Verification script templates** | Reusable scripts for common metrics | Easy |
 | **Bug fixes** | Loop edge cases, incorrect behavior | Medium |
 | **New sub-commands** | `/autoresearch:refactor`, `/autoresearch:test` | Medium |
@@ -161,8 +172,8 @@ We use [conventional commits](https://www.conventionalcommits.org/):
 5. **Update docs.** If you add a feature, update the relevant docs:
    - `SKILL.md` — register sub-commands, update activation triggers
    - `README.md` — commands table, quick decision guide, repo structure, FAQ
-   - `GUIDE.md` — command reference, domain scenarios, chain patterns
-   - `EXAMPLES.md` — add copy-paste examples for new features
+   - `guide/` — add individual command guide or update existing ones
+   - `guide/examples-by-domain.md` — add copy-paste examples for new features
 6. **Don't bump the version.** Maintainers handle version bumps via `scripts/release.sh`.
 7. **Keep files focused.** Don't modify files unrelated to your change.
 

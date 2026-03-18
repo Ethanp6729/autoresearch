@@ -20,7 +20,7 @@ Based on [Karpathy's autoresearch](https://github.com/karpathy/autoresearch) —
 
 <br>
 
-[How It Works](#how-it-works) · [Commands](#commands) · [Quick Start](#quick-start) · [Guide](GUIDE.md) · [Examples](EXAMPLES.md) · [FAQ](#faq)
+[How It Works](#how-it-works) · [Commands](#commands) · [Quick Start](#quick-start) · [Guides](guide/) · [FAQ](#faq)
 
 </div>
 
@@ -358,8 +358,20 @@ Every 10 iterations, Claude prints a progress summary. Bounded loops print a fin
 ```
 autoresearch/
 ├── README.md
-├── GUIDE.md                                       ← Complete guide — installation to advanced chains
-├── EXAMPLES.md                                    ← Real-world examples by domain
+├── guide/                                         ← Comprehensive guides — one per command + advanced patterns
+│   ├── README.md                                  ← Guide index
+│   ├── getting-started.md                         ← Installation, core concepts, FAQ
+│   ├── autoresearch.md                            ← The autonomous loop
+│   ├── autoresearch-plan.md                       ← Setup wizard
+│   ├── autoresearch-debug.md                      ← Bug hunter
+│   ├── autoresearch-fix.md                        ← Error crusher
+│   ├── autoresearch-security.md                   ← Security auditor
+│   ├── autoresearch-ship.md                       ← Shipping workflow
+│   ├── autoresearch-scenario.md                   ← Scenario explorer
+│   ├── autoresearch-predict.md                    ← Multi-persona swarm prediction
+│   ├── chains-and-combinations.md                 ← Multi-command pipelines
+│   ├── examples-by-domain.md                      ← Real-world examples by domain
+│   └── advanced-patterns.md                       ← Guards, MCP, CI/CD, FAQ
 ├── LICENSE
 ├── .claude-plugin/
 │   ├── marketplace.json                           ← Plugin marketplace manifest
@@ -371,7 +383,8 @@ autoresearch/
 │       ├── security.md                            ← /autoresearch:security registration
 │       ├── debug.md                               ← /autoresearch:debug registration
 │       ├── fix.md                                 ← /autoresearch:fix registration
-│       └── scenario.md                            ← /autoresearch:scenario registration
+│       ├── scenario.md                            ← /autoresearch:scenario registration
+│       └── predict.md                             ← /autoresearch:predict registration
 └── skills/
     └── autoresearch/
         ├── SKILL.md                               ← Main skill (loaded by Claude Code)
@@ -384,6 +397,7 @@ autoresearch/
             ├── debug-workflow.md                  ← Debug loop protocol
             ├── fix-workflow.md                    ← Fix loop protocol
             ├── scenario-workflow.md               ← Scenario exploration protocol
+            ├── predict-workflow.md                ← Multi-persona swarm prediction workflow
             └── results-logging.md                 ← TSV tracking format
 ```
 
@@ -401,13 +415,13 @@ A: Yes. Any language, framework, or domain. Copy the skill to `.claude/skills/au
 A: `Ctrl+C` or add `Iterations: N` to your inline config to run exactly N iterations. Claude commits before verifying, so your last successful state is always in git.
 
 **Q: Can I use this for non-code tasks?**
-A: Absolutely. Sales emails, marketing copy, HR policies, runbooks — anything with a measurable metric. See [EXAMPLES.md](EXAMPLES.md).
+A: Absolutely. Sales emails, marketing copy, HR policies, runbooks — anything with a measurable metric. See [Examples by Domain](guide/examples-by-domain.md).
 
 **Q: Does /autoresearch:security modify my code?**
 A: No. It's read-only — analyzes code and produces a structured report. Use `--fix` to opt into auto-remediation of confirmed Critical/High findings.
 
 **Q: Can I use MCP servers?**
-A: Yes. Any MCP server configured in Claude Code is available during the loop for database queries, API calls, analytics, etc. See [EXAMPLES.md](EXAMPLES.md#combining-with-mcp-servers).
+A: Yes. Any MCP server configured in Claude Code is available during the loop for database queries, API calls, analytics, etc. See [Advanced Patterns](guide/advanced-patterns.md#using-with-mcp-servers).
 
 ---
 
@@ -415,7 +429,7 @@ A: Yes. Any MCP server configured in Claude Code is available during the loop fo
 
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Areas of interest: new domain examples, verification script templates, CI/CD integrations, real-world benchmarks.
+Areas of interest: new domain examples, verification script templates, CI/CD integrations, real-world benchmarks. All guides are in the [guide/](guide/) folder.
 
 ---
 
