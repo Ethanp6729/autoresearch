@@ -113,6 +113,118 @@ git show abc1234 --stat
 # → Next: try a different cache strategy, NOT longer TTL
 ```
 
+### Git Memory Integration with the Autonomous Loop
+
+Shows exactly how git memory integrates at each loop phase with executable bash.
+
+```bash
+# === PHASE 0: Initialize Git Memory ===
+# Verify git repo is ready for memory tracking
+git_memory_init() {
+  git rev-parse --git-dir 2>/dev/null || { echo "FAIL: not a git repo"; return 1; }
+  git status --porcelain | grep -q . && { echo "WARN: dirty tree — stash or commit first"; return 1; }
+  echo "✓ Git memory initialized — $(git log --oneline | wc -l) commits available"
+}
+
+# === PHASE 1: Read Git Memory ===
+# Called at the START of every iteration to build situational awareness
+read_git_memory() {
+  local depth=${1:-20}
+
+  # 1. Recent experiment history (what was tried)
+  echo "=== Recent Experiments ==="
+  git log --oneline -"$depth" | grep -E "experiment|Revert"
+
+  # 2. Last successful change (what worked and why)
+  echo "=== Last Kept Change ==="
+  git diff HEAD~1 --stat 2>/dev/null
+
+  # 3. Pattern detection (which files drive improvements)
+  echo "=== Success Patterns ==="
+  git log --oneline -"$depth" --diff-filter=M --name-only | sort | uniq -c | sort -rn | head -5
+
+  # 4. Failed approaches (what to avoid)
+  echo "=== Reverted Experiments (avoid repeating) ==="
+  git log --oneline -"$depth" | grep "Revert" | sed 's/Revert "//' | sed 's/"$//'
+}
+
+# === PHASE 2: Query Git Memory for Decision Making ===
+# Before choosing the next experiment, the agent queries history
+query_git_memory() {
+  local query="$1"
+
+  # Find commits related to a topic
+  git log --oneline -20 --grep="$query" 2>/dev/null
+
+  # Check if this approach was already tried and reverted
+  if git log --oneline -20 | grep -q "Revert.*$query"; then
+    echo "⚠ WARNING: '$query' was tried before and REVERTED — try a different approach"
+    return 1
+  fi
+  return 0
+}
+
+# === PHASE 6: Write to Git Memory ===
+# Commit becomes memory. Revert becomes "lesson learned."
+write_git_memory() {
+  local scope="$1" description="$2"
+  git add "$scope"
+  git commit -m "experiment($scope): $description"
+  echo "✓ Experiment committed to git memory"
+}
+```
+
+### Error Handling for Git Operations
+
+```bash
+# Safe git operations with error handling
+safe_git_log() {
+  git log --oneline -"${1:-20}" 2>/dev/null || echo "WARN: git log failed — empty repo?"
+}
+
+safe_git_diff() {
+  git diff HEAD~1 --stat 2>/dev/null || echo "INFO: no previous commit to diff (first iteration)"
+}
+
+# Handle detached HEAD (common after revert conflicts)
+ensure_on_branch() {
+  if ! git symbolic-ref HEAD 2>/dev/null; then
+    echo "WARN: detached HEAD detected — creating recovery branch"
+    git checkout -b autoresearch-recovery-$(date +%s)
+  fi
+}
+```
+
+### Complete Integration Example
+
+```
+/autoresearch
+Goal: Improve ML model accuracy from 85% to 95%
+Scope: model.py, config.yaml
+Verify: python train.py --eval 2>&1 | grep 'accuracy' | awk '{print $2}'
+
+# What happens internally at each iteration:
+
+# Iteration 3 — Agent reads git memory:
+$ git log --oneline -5
+# c3d4e5f experiment(model): increase hidden layers from 2 to 4 — KEPT
+# Revert "experiment(model): switch optimizer to SGD"
+# a1b2c3d experiment(model): add dropout 0.3 — KEPT
+# 0000000 baseline — accuracy 85%
+
+# Agent's decision process (informed by git memory):
+# ✓ "increase hidden layers" KEPT → try variant: increase to 6 layers
+# ✗ "switch to SGD" REVERTED → avoid optimizer changes
+# ✓ "add dropout" KEPT → dropout works, try adjusting rate
+# → Decision: increase hidden layers from 4 to 6 (exploiting success pattern)
+
+# Agent modifies model.py, commits:
+$ git commit -m "experiment(model): increase hidden layers from 4 to 6"
+# Verify: accuracy = 91.2% (+2.1%) → KEEP
+
+# Next iteration reads updated memory, sees 3 successful layer changes...
+```
+
 ## Phase 2: Ideate (Strategic)
 
 Pick the NEXT change. **MUST consult git history and results log before deciding.**
@@ -185,6 +297,82 @@ fi
 
 # The one-sentence test: describe the change in ONE sentence
 # If you need "and", split into separate iterations
+```
+
+### Atomicity Configuration
+
+Configure how strictly the agent enforces the one-change-per-iteration rule:
+
+```
+/autoresearch
+Goal: Optimize API response time
+Scope: src/api/**/*.ts
+Verify: wrk -t2 -c10 -d10s http://localhost:3000 | grep 'Avg Lat' | awk '{print $2}'
+Atomicity: strict       # enforce one-change rule (default)
+Max-Files-Per-Change: 3  # alert if >3 files modified in one iteration
+```
+
+**Atomicity levels:**
+
+| Level | Behavior | When to Use |
+|-------|----------|-------------|
+| `strict` (default) | Agent MUST make exactly one logical change per iteration. Self-check validates before commit. If >5 files changed, agent re-evaluates and splits if needed. | Most optimization tasks |
+| `relaxed` | Agent can make coordinated multi-file changes as one unit. No file count warnings. Still requires one-sentence description test. | Infrastructure/config changes spanning many files |
+
+**How the agent enforces atomicity at Phase 3:**
+
+```bash
+# Step 1: Before making any change, write the description
+DESCRIPTION="add response caching to /api/users endpoint"
+# Test: Can this be said in ONE sentence without "and"? → Yes ✓
+
+# Step 2: Make the change (modify files)
+# ... edit src/api/users.ts ...
+
+# Step 3: Validate atomicity before committing
+FILES_CHANGED=$(git diff --name-only | wc -l | tr -d ' ')
+LINES_CHANGED=$(git diff --stat | tail -1 | grep -oP '\d+ insertion' | grep -oP '\d+' || echo 0)
+
+if [ "$FILES_CHANGED" -gt "${MAX_FILES:-5}" ]; then
+  echo "⚠ ATOMICITY CHECK: ${FILES_CHANGED} files changed"
+  echo "  Review: is this truly ONE logical change?"
+  echo "  If not, split into separate iterations"
+  # Agent re-evaluates and may undo partial changes
+fi
+
+# Step 4: Verify the one-sentence test passes
+echo "Change: ${DESCRIPTION}"
+# If description contains "and" linking unrelated actions → SPLIT
+echo "$DESCRIPTION" | grep -qE '\band\b.*\b(add|remove|change|update|fix)\b' && \
+  echo "⚠ Description contains 'and' with multiple actions — consider splitting"
+
+# Step 5: Commit only if atomicity validated
+git add <specific-files>
+git commit -m "experiment(api): ${DESCRIPTION}"
+```
+
+**Examples of atomicity enforcement:**
+
+```
+# ✓ ATOMIC — passes all checks:
+Description: "add response caching to /api/users"
+Files changed: 1 (src/api/users.ts)
+→ Commit proceeds
+
+# ✓ ATOMIC — multi-file but single intent:
+Description: "add Redis caching layer"
+Files changed: 3 (docker-compose.yml, src/cache.ts, src/api/users.ts)
+→ Same intent across files, commit proceeds
+
+# ✗ NOT ATOMIC — fails one-sentence test:
+Description: "add caching AND refactor error handling"
+→ Contains "and" linking unrelated actions
+→ Split into: iteration N = "add caching", iteration N+1 = "refactor error handling"
+
+# ✗ NOT ATOMIC — too many unrelated files:
+Description: "optimize performance"
+Files changed: 12 (across api, db, frontend, config)
+→ Too broad — split into focused iterations
 ```
 
 ## Phase 4: Commit (Before Verification)

@@ -719,6 +719,116 @@ Iterations: 15
 
 Runs readiness checklist, deploys, then monitors for 10 minutes. Triggers auto-rollback on error spike.
 
+### CLI invocation for DevOps pipelines
+
+Invoke autoresearch from the command line for DevOps workflows:
+
+```bash
+# Interactive mode — Claude guides the optimization
+claude "/autoresearch
+Goal: Reduce CI/CD pipeline from 12min to 5min
+Scope: .github/workflows/*.yml, Dockerfile, docker-compose.yml
+Verify: gh run list --limit 1 --json durationMs --jq '.[0].durationMs / 60000'
+Iterations: 15"
+
+# Non-interactive (CI/CD mode) — runs headless
+claude --print "/autoresearch
+Goal: Reduce Docker build time
+Scope: Dockerfile
+Verify: docker build . 2>&1 | grep -oP 'total [\d.]+s' | grep -oP '[\d.]+'
+Iterations: 10"
+
+# With guard to prevent breaking deployments
+claude "/autoresearch
+Goal: Optimize Kubernetes resource usage
+Scope: k8s/*.yaml
+Verify: kubectl top pods -n prod --no-headers | awk '{sum+=\$3} END {print sum}'
+Guard: kubectl rollout status deployment/app -n prod --timeout=60s
+Iterations: 10"
+```
+
+### Error handling for DevOps experiments
+
+DevOps changes can fail in ways code changes don't — broken deploys, unreachable services, resource exhaustion:
+
+```bash
+# Verify with timeout (prevent hanging on stuck deployments)
+timeout 120 kubectl rollout status deployment/app --timeout=90s 2>&1 \
+  | grep -oP '\d+(?=s)' || echo "999"
+# → Returns 999 on timeout, triggering discard
+
+# Health check with retry (services may take time to start)
+verify_with_retry() {
+  for i in 1 2 3; do
+    if curl -sf http://localhost:3000/health > /dev/null 2>&1; then
+      return 0
+    fi
+    sleep 5
+  done
+  return 1  # Failed after 3 retries
+}
+
+# Guard: ensure deployment didn't break production
+guard_production() {
+  # Check pod status
+  kubectl get pods -n prod | grep -v Running | grep -v Completed | grep -c . && return 1
+  # Check endpoint health
+  curl -sf "https://api.example.com/health" > /dev/null || return 1
+  return 0
+}
+```
+
+**Common DevOps failure patterns and recovery:**
+
+| Failure | Detection | Recovery |
+|---------|-----------|----------|
+| Deploy timeout | `kubectl rollout status` exits non-zero | `safe_revert()` restores previous YAML |
+| OOM killed | Pod status = OOMKilled | Revert resource change, try smaller increment |
+| Health check fails | `curl -f` returns non-zero | Rollback deploy: `kubectl rollout undo` |
+| Build cache miss | Build time spikes | Revert Dockerfile change, try different layer strategy |
+| Port conflict | Container fails to start | Revert port change in compose + app config |
+
+### Defining metrics for complex pipeline changes
+
+DevOps metrics often require composite measurement:
+
+```bash
+# Pipeline duration (minutes)
+gh run list --limit 1 --json durationMs --jq '.[0].durationMs / 60000'
+
+# Docker image size (MB)
+docker images myapp:latest --format '{{.Size}}' | grep -oP '[\d.]+'
+
+# Deployment rollout time (seconds)
+kubectl rollout status deployment/app 2>&1 | grep -oP '\d+(?= seconds)'
+
+# Resource utilization (average CPU across all pods)
+kubectl top pods --no-headers | awk '{sum+=$3} END {print sum/NR}'
+
+# Cost estimation (compute-hours)
+kubectl get pods -o json | jq '[.items[].spec.containers[].resources.requests.cpu // "100m"] | map(rtrimstr("m") | tonumber) | add / 1000'
+```
+
+### Rollback in production environments
+
+```bash
+# Autoresearch automatically handles rollback via safe_revert():
+# 1. Code change is committed BEFORE verification (Phase 4)
+# 2. If verification fails, git revert restores previous state (Phase 6)
+# 3. For Kubernetes, add explicit rollback as part of safe_revert:
+
+# In your Guard command, combine code check + deploy check:
+Guard: kubectl rollout status deployment/app --timeout=60s && curl -sf http://api.example.com/health
+
+# If guard fails:
+# 1. safe_revert() reverts the git commit (YAML files restored)
+# 2. kubectl apply -f k8s/ re-applies the reverted config
+# 3. kubectl rollout status confirms rollback succeeded
+
+# For critical production systems, add a pre-deploy snapshot:
+# Verify: kubectl apply -f k8s/ && kubectl rollout status deployment/app && curl -sf http://api.example.com/health | jq '.responseTime'
+```
+
 ---
 
 ## Data Science & ML
@@ -731,6 +841,39 @@ Goal: Reduce validation loss (val_bpb)
 Scope: train.py, model.py
 Metric: val_bpb (lower is better)
 Verify: uv run train.py --epochs 1 2>&1 | grep "val_bpb" | tail -1 | awk '{print $NF}'
+```
+
+### Optimize ML model accuracy
+
+```
+/autoresearch
+Goal: Improve classification accuracy from 85% to 95%
+Scope: model.py, config.yaml, data/augmentation.py
+Verify: python train.py --eval-only 2>&1 | grep 'val_accuracy' | awk '{print $NF}'
+Guard: python -m pytest tests/test_model.py -q
+Noise: high
+Min-Delta: 0.5
+Iterations: 25
+```
+
+The agent targets one hyperparameter or architectural change per iteration: learning rate, batch size, layer count, dropout rate, optimizer, augmentation strategy. Each experiment is committed before verification, enabling git-based rollback if accuracy drops.
+
+**Example iterations:**
+```bash
+# Iteration 1: Increase learning rate
+# model.py: lr = 0.001 → lr = 0.01
+git commit -m "experiment(model): increase learning rate from 0.001 to 0.01"
+# Verify: accuracy = 87.2% (+2.2%) → KEEP
+
+# Iteration 2: Add data augmentation
+# data/augmentation.py: add random flip + rotation
+git commit -m "experiment(data): add random flip and rotation augmentation"
+# Verify: accuracy = 89.1% (+1.9%) → KEEP
+
+# Iteration 3: Try larger batch size
+# config.yaml: batch_size = 32 → 128
+git commit -m "experiment(config): increase batch size from 32 to 128"
+# Verify: accuracy = 88.5% (-0.6%) → DISCARD (reverted)
 ```
 
 ### SQL query optimization
