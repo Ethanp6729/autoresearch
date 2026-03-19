@@ -68,6 +68,36 @@ cp autoresearch/claude-plugin/commands/autoresearch.md ~/.claude/commands/autore
 
 Type `/autoresearch` in Claude Code. If you see the interactive setup wizard asking about your goal, you're ready.
 
+### Complete Initialization (Iteration #0 — Baseline)
+
+When you invoke `/autoresearch`, the agent automatically performs this initialization sequence before the first real iteration:
+
+```bash
+# Phase 0: Precondition Checks
+git rev-parse --git-dir 2>/dev/null   # ✓ verify git repo exists
+git status --porcelain                 # ✓ verify clean working tree
+git symbolic-ref HEAD 2>/dev/null      # ✓ verify not in detached HEAD
+
+# Phase 0: Establish Baseline Metric (Iteration #0)
+# Agent runs the Verify command to get the starting value:
+BASELINE=$(npx jest --coverage 2>&1 | grep 'All files' | awk '{print $4}')
+echo "Baseline: ${BASELINE}%"
+
+# Phase 0: Initialize Results Log
+echo "# metric_direction: higher_is_better" > autoresearch-results.tsv
+echo -e "iteration\tcommit\tmetric\tdelta\tguard\tstatus\tdescription" >> autoresearch-results.tsv
+echo -e "0\t$(git rev-parse --short HEAD)\t${BASELINE}\t0.0\tpass\tbaseline\tinitial state — coverage ${BASELINE}%" >> autoresearch-results.tsv
+
+# Phase 0: Protect log from git
+echo "autoresearch-results.tsv" >> .gitignore
+git add .gitignore && git commit -m "chore: add autoresearch results log to gitignore"
+
+# ✓ Initialization complete — entering iteration loop
+# Agent now proceeds to Phase 1 (Review) → Phase 2 (Ideate) → ...
+```
+
+This is all automatic — you just run `/autoresearch` with your goal, scope, and verify command. The agent handles Phase 0 internally.
+
 ---
 
 ## Your First Run

@@ -607,6 +607,71 @@ Metric: image size in MB (lower is better)
 Verify: docker build -t bench . 2>&1 && docker images bench --format "{{.Size}}"
 ```
 
+### Optimize Docker build time
+
+```
+/autoresearch
+Goal: Reduce Docker build time from 180s to under 60s
+Scope: Dockerfile, .dockerignore
+Verify: docker build --no-cache . 2>&1 | tail -1 | grep -oP '[\d.]+'
+Iterations: 10
+```
+
+Claude targets one optimization per iteration: layer ordering, multi-stage builds, .dockerignore rules, apt-get cleanup, build argument caching.
+
+### Kubernetes deployment optimization
+
+```
+/autoresearch
+Goal: Reduce pod startup time from 45s to under 15s
+Scope: k8s/deployment.yaml, k8s/service.yaml, k8s/configmap.yaml
+Verify: kubectl rollout status deployment/app --timeout=60s 2>&1 | grep -oP '\d+(?=s)'
+Guard: kubectl get pods | grep -c 'Running'
+Iterations: 10
+```
+
+Changes spanning `deployment.yaml` + `service.yaml` + `configmap.yaml` are ONE atomic change when they serve the same purpose (e.g., "add resource limits" touches deployment + configmap).
+
+### Optimize CI/CD pipeline duration
+
+```
+/autoresearch
+Goal: Reduce CI/CD pipeline from 12 minutes to under 5 minutes
+Scope: .github/workflows/*.yml, Dockerfile, docker-compose.yml
+Verify: gh run list --limit 1 --json durationMs --jq '.[0].durationMs / 60000'
+Guard: docker compose up -d && sleep 5 && curl -sf http://localhost:3000/health
+Iterations: 15
+```
+
+Multi-file changes are common in DevOps. The rule: **same intent = one change**, even across files.
+
+**Example iterations:**
+```bash
+# Iteration 1: Enable Docker layer caching (Dockerfile + CI workflow — ONE intent)
+# Files: Dockerfile, .github/workflows/ci.yml
+git add Dockerfile .github/workflows/ci.yml
+git commit -m "experiment(ci): enable Docker layer caching in build step"
+# Verify: pipeline time dropped from 12min → 9min ✓ KEEP
+
+# Iteration 2: Parallelize test matrix (CI workflow only)
+# Files: .github/workflows/ci.yml
+git add .github/workflows/ci.yml
+git commit -m "experiment(ci): split tests into 3 parallel matrix jobs"
+# Verify: 9min → 6min ✓ KEEP
+
+# Iteration 3: Switch to slim base image (Dockerfile + compose — ONE intent)
+# Files: Dockerfile, docker-compose.yml
+git add Dockerfile docker-compose.yml
+git commit -m "experiment(ci): switch node:20 to node:20-slim base image"
+# Verify: 6min → 5.2min ✓ KEEP
+```
+
+| One Change (OK) | Two Changes (Split Into Separate Iterations) |
+|-----------------|---------------------------------------------|
+| Change port in Dockerfile + compose + nginx | Change port AND add new service |
+| Update Node version in Dockerfile + CI + package.json | Update Node AND switch package manager |
+| Add caching in CI workflow + Dockerfile | Add caching AND parallelize tests |
+
 ### CI/CD pipeline speed
 
 ```

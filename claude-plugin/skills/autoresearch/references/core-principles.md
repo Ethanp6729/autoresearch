@@ -77,6 +77,38 @@ Every successful change is committed. This enables:
 
 **Apply:** Commit before verify. Revert on failure. Agent reads its own git history to inform next experiment.
 
+**Configuration:**
+```
+/autoresearch
+Git-Memory: enabled     # default — always on, reads git history every iteration
+Memory-Depth: 20        # number of past commits to review (default: 20)
+```
+
+**Key commands the agent runs every iteration:**
+```bash
+git log --oneline -20           # see experiment sequence (kept vs reverted)
+git diff HEAD~1                 # inspect last kept change to understand WHY it worked
+git show <hash> --stat          # deep-dive specific commit to see which files drove improvement
+```
+
+**Without Git Memory (agent has no history — repeats failures):**
+```
+Iteration 1: Try increasing batch size → OOM crash → reverted
+Iteration 5: Try increasing batch size → OOM crash → REPEATED!
+Iteration 9: Try increasing batch size → OOM crash → WASTED!
+# No learning — 3 iterations lost to the same failed idea
+```
+
+**With Git Memory (agent reads git log — learns and adapts):**
+```
+Iteration 1: Try increasing batch size → OOM crash → git revert (preserved in history)
+Iteration 2: git log shows "experiment: increase batch size — REVERTED"
+             → Agent tries DIFFERENT approach: reduce model layers → metric improves → KEPT
+Iteration 3: git diff HEAD~1 shows which layers were removed
+             → Agent tries removing another layer → metric improves → KEPT
+# Agent learns from history, exploits successes, never repeats failures
+```
+
 ## 7. Honest Limitations
 
 State what the system can and cannot do. Don't oversell.

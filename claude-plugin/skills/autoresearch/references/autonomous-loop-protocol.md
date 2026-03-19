@@ -65,6 +65,54 @@ Before each iteration, build situational awareness. **You MUST complete ALL 6 st
 - `git log --all --oneline` → if working on a branch, see full experiment history
 - Use commit messages (e.g., "experiment: increase batch size") to avoid repeating failed approaches
 
+## Git as Memory — Configuration
+
+Git as Memory is **always enabled** — it's a core behavior, not optional. The agent reads its own git history every iteration to learn from past experiments.
+
+### Configuration Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| Memory depth | 20 commits | How far back to read history |
+| Diff review | HEAD~1 | How far back to diff kept changes |
+| Full history | disabled | Read all branches |
+
+### How It Works (step by step)
+
+At the start of EVERY iteration (Phase 1), the agent runs:
+
+```bash
+# Step 1: Read recent experiment history
+git log --oneline -20
+# Shows: kept commits remain, discarded ones were reverted
+
+# Step 2: Inspect the last successful change
+git diff HEAD~1
+# Shows: exact diff that improved the metric — informs next experiment
+
+# Step 3: Check what was tried (avoid repeating failures)
+git log --oneline -20 | grep "experiment"
+# Shows: all experiment descriptions
+
+# Step 4: Deep-dive a specific success
+git show abc1234 --stat
+# Shows: which files were changed in a successful experiment
+```
+
+### Example: Memory in Action
+
+```
+# Agent reads git log and sees:
+# a1b2c3d experiment(api): add response caching — KEPT (metric improved)
+# d4e5f6g Revert "experiment(api): increase cache TTL to 60s" — REVERTED
+# c3d4e5f experiment(api): add cache invalidation on write — KEPT
+#
+# Agent learns:
+# ✓ Caching works (2 kept commits)
+# ✗ Increasing TTL didn't help (reverted)
+# → Next: try a different cache strategy, NOT longer TTL
+```
+
 ## Phase 2: Ideate (Strategic)
 
 Pick the NEXT change. **MUST consult git history and results log before deciding.**
@@ -97,6 +145,47 @@ Pick the NEXT change. **MUST consult git history and results log before deciding
 - Make ONE focused change to in-scope files
 - The change should be explainable in one sentence
 - Write the description BEFORE making the change (forces clarity)
+
+### Multi-File Atomic Changes
+
+One logical change may span multiple files. This is still ONE change if it serves a single purpose.
+
+**The one-sentence test:** If you need "and" to describe it, it's two changes. Split them.
+
+| One Change (OK) | Two Changes (Split) |
+|-----------------|---------------------|
+| Change port 3000→8080 in Dockerfile + compose + nginx | Change port AND add new service |
+| Update Node 18→20 in Dockerfile + CI + package.json | Update Node AND switch to pnpm |
+| Add Redis in compose + app config + env vars | Add Redis AND refactor auth module |
+
+#### DevOps Example
+
+```bash
+# Iteration 1: Enable Docker layer caching (2 files, one intent)
+git add Dockerfile .github/workflows/ci.yml
+git commit -m "experiment(ci): enable Docker layer caching"
+# ✓ One change: "enable caching" — same intent across files
+
+# Iteration 2: Parallelize test jobs (1 file)
+git add .github/workflows/ci.yml
+git commit -m "experiment(ci): parallelize tests with matrix strategy"
+# ✓ One change: "parallelize tests"
+```
+
+### Enforcing Atomicity — Self-Check
+
+```bash
+# After modifying but before committing, validate atomicity:
+FILES_CHANGED=$(git diff --name-only | wc -l)
+
+# Heuristic: >5 files likely means multiple changes — review
+if [ "$FILES_CHANGED" -gt 5 ]; then
+  echo "WARN: ${FILES_CHANGED} files changed — verify single intent"
+fi
+
+# The one-sentence test: describe the change in ONE sentence
+# If you need "and", split into separate iterations
+```
 
 ## Phase 4: Commit (Before Verification)
 
@@ -148,6 +237,121 @@ Run the agreed-upon verification command. Capture output.
 
 **Extract metric:** Parse the verification output for the specific metric number.
 
+### Verification Command Templates by Language
+
+| Language | Verify Command | Metric | Direction |
+|----------|---------------|--------|-----------|
+| **Node.js** | `npx jest --coverage 2>&1 \| grep 'All files' \| awk '{print $4}'` | Coverage % | higher |
+| **Python** | `pytest --cov=src --cov-report=term 2>&1 \| grep TOTAL \| awk '{print $4}'` | Coverage % | higher |
+| **Rust** | `cargo test 2>&1 \| grep -oP '\d+ passed' \| grep -oP '\d+'` | Tests passed | higher |
+| **Go** | `go test -count=1 ./... 2>&1 \| grep -c '^ok'` | Packages passing | higher |
+| **Java** | `mvn test 2>&1 \| grep 'Tests run:' \| tail -1 \| grep -oP 'Failures: \d+' \| grep -oP '\d+'` | Failures | lower |
+| **Bundle** | `npx esbuild src/index.ts --bundle --minify \| wc -c` | Bytes | lower |
+| **Lighthouse** | `npx lighthouse http://localhost:3000 --output=json \| jq '.categories.performance.score * 100'` | Score 0-100 | higher |
+| **Latency** | `wrk -t2 -c10 -d10s http://localhost:3000/api 2>&1 \| grep 'Avg Lat' \| awk '{print $2}'` | ms | lower |
+
+## Phase 5.1: Noise Handling (for Volatile Metrics)
+
+Some metrics are inherently noisy — benchmark times, ML accuracy, Lighthouse scores. A single measurement can mislead. Use these strategies to prevent false keep/discard decisions.
+
+### Strategy 1: Multi-Run Verification
+
+Run verify N times and use the median to filter outliers:
+
+```bash
+# Single run (unreliable for noisy metrics):
+npm run benchmark  # might report 142ms or 158ms randomly
+
+# Multi-run with median (reliable):
+for i in 1 2 3; do
+  npm run benchmark 2>&1 | grep 'avg' | awk '{print $2}'
+done | sort -n | sed -n '2p'  # median of 3 runs
+```
+
+Configure via inline config:
+```
+/autoresearch
+Verify: npm run benchmark 2>&1 | grep 'avg' | awk '{print $2}'
+Noise: high           # triggers 3-run median automatically
+Noise-Runs: 5         # custom: 5 runs instead of default 3
+```
+
+### Strategy 2: Minimum Improvement Threshold
+
+Ignore improvements smaller than the noise floor:
+
+```
+# Configuration:
+Min-Delta: 2.0   # only keep if improvement > 2%
+
+# Decision logic (extends Phase 6):
+IF metric_improved AND delta > min_delta:
+    STATUS = "keep"
+ELIF metric_improved AND delta <= min_delta:
+    STATUS = "discard"
+    LOG "NOISE: delta {delta} below threshold {min_delta}"
+```
+
+### Strategy 3: Confirmation Run
+
+Re-verify before making a final keep decision:
+
+```
+IF metric_improved:
+    second_metric = run_verify()  # run verify again
+    IF abs(second_metric - first_metric) / first_metric < 0.01:
+        STATUS = "keep"     # confirmed — both runs agree
+    ELSE:
+        STATUS = "discard"  # first result was noise
+        LOG "NOISE: confirmation run disagreed"
+```
+
+### Strategy 4: Environment Pinning
+
+Reduce noise at the source by controlling external factors:
+
+```bash
+# Pin random seeds for ML/statistical workloads
+PYTHONHASHSEED=42 python train.py --seed 42
+
+# Use deterministic test ordering
+pytest -p no:randomly
+
+# Flush caches before benchmarking
+redis-cli FLUSHALL 2>/dev/null; npm run benchmark
+
+# Warm up before timing (eliminates JIT/cold-start noise)
+node server.js &
+sleep 2
+wrk -t1 -c1 -d3s http://localhost:3000  # warm-up (discard)
+wrk -t2 -c10 -d10s http://localhost:3000  # actual measurement
+```
+
+### When to Use Each Strategy
+
+| Metric Type | Noise Level | Strategy |
+|-------------|-------------|----------|
+| Test coverage (%) | None | No special handling |
+| Bundle size (bytes) | None | No special handling |
+| Benchmark time (ms) | Medium | Multi-run median (3 runs) |
+| Lighthouse score | Medium | Multi-run median (5 runs) |
+| ML training loss | High | Environment pinning + confirmation run |
+| API response time | High | Warm-up + multi-run + min-delta |
+
+### Preventing Premature Rollbacks
+
+When a metric seems worse but could be noise:
+
+```
+IF metric_worse AND abs(delta) < noise_floor:
+    second_result = run_verify()  # confirm the regression
+    IF second_result also worse:
+        STATUS = "discard"    # confirmed regression — revert
+    ELSE:
+        STATUS = "keep"       # first measurement was noise — keep the change
+        LOG "NOISE: initial regression not confirmed on re-run"
+```
+
 ## Phase 5.5: Guard (Regression Check)
 
 If a **guard** command was defined during setup, run it after verification.
@@ -183,15 +387,30 @@ When the guard fails but the metric improved, the optimization idea may still be
 
 ## Phase 6: Decide (No Ambiguity)
 
-```
-# Helper: safe_revert — use everywhere instead of bare git revert
-safe_revert():
-    git revert HEAD --no-edit
-    IF revert conflicts:
-        git revert --abort
-        git reset --hard HEAD~1   # Fallback: destroys commit but keeps working state clean
-        LOG "WARN: revert conflicted, used reset --hard fallback"
+```bash
+# Rollback function — used for all discard/crash decisions
+safe_revert() {
+  echo "Reverting: $(git log --oneline -1)"
 
+  # Attempt 1: git revert (preserves history — preferred)
+  if git revert HEAD --no-edit 2>/dev/null; then
+    echo "✓ Reverted via git revert (experiment preserved in history for learning)"
+    return 0
+  fi
+
+  # Attempt 2: revert conflicted — fallback to reset
+  git revert --abort 2>/dev/null
+  echo "⚠ Revert conflicted — using git reset --hard HEAD~1"
+  git reset --hard HEAD~1
+  echo "✓ Reverted via reset (experiment removed from history)"
+  return 0
+}
+
+# Usage in Phase 6 decision logic:
+# if STATUS == "discard" or STATUS == "crash": safe_revert
+```
+
+```
 IF metric_improved AND (no guard OR guard_passed):
     STATUS = "keep"
     # Do nothing — commit stays. Git history preserves this success.

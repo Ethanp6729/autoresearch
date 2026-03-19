@@ -424,9 +424,89 @@ if [ -n "$staged" ]; then
 fi
 ```
 
+### CI/CD integration
+
+Run autoresearch in automated pipelines for nightly optimization:
+
+```yaml
+# .github/workflows/autoresearch.yml
+name: Nightly Autoresearch
+on:
+  schedule:
+    - cron: '0 2 * * *'  # 2am UTC daily
+  workflow_dispatch:
+    inputs:
+      iterations:
+        description: 'Number of iterations'
+        default: '10'
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+
+      - name: Run autoresearch
+        run: |
+          claude --print "/autoresearch
+          Goal: Improve test coverage
+          Scope: src/**/*.ts
+          Verify: npx jest --coverage 2>&1 | grep 'All files' | awk '{print \$4}'
+          Iterations: ${{ github.event.inputs.iterations || '10' }}"
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autoresearch-results
+          path: autoresearch-results.tsv
+
+      - name: Create PR with improvements
+        if: success()
+        run: |
+          git diff --quiet || (
+            git checkout -b autoresearch/nightly-$(date +%Y%m%d)
+            git add -A && git commit -m "feat: autoresearch nightly improvements"
+            gh pr create --title "Autoresearch nightly improvements" --body "Automated optimization run"
+          )
+```
+
+**GitLab CI equivalent:**
+```yaml
+autoresearch:
+  stage: optimize
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script:
+    - claude --print "/autoresearch Iterations: 10 Goal: Improve coverage Verify: pytest --cov"
+  artifacts:
+    paths:
+      - autoresearch-results.tsv
+```
+
 ---
 
 ## Results Tracking Deep Dive
+
+### Verification command templates by language
+
+| Language | Verify Command | Metric | Direction |
+|----------|---------------|--------|-----------|
+| **Node.js** | `npx jest --coverage 2>&1 \| grep 'All files' \| awk '{print $4}'` | Coverage % | higher |
+| **Python** | `pytest --cov=src --cov-report=term 2>&1 \| grep TOTAL \| awk '{print $4}'` | Coverage % | higher |
+| **Rust** | `cargo test 2>&1 \| grep -oP '\d+ passed' \| grep -oP '\d+'` | Tests passed | higher |
+| **Go** | `go test -count=1 ./... 2>&1 \| grep -c '^ok'` | Packages OK | higher |
+| **Java** | `mvn test 2>&1 \| grep 'Tests run:' \| tail -1 \| grep -oP 'Failures: \d+' \| grep -oP '\d+'` | Failures | lower |
+| **Ruby** | `bundle exec rspec 2>&1 \| tail -1 \| grep -oP '\d+ examples'` | Examples | higher |
+| **Bundle size** | `npx esbuild src/index.ts --bundle --minify \| wc -c` | Bytes | lower |
+| **Lighthouse** | `npx lighthouse http://localhost:3000 --output=json \| jq '.categories.performance.score * 100'` | Score | higher |
+| **API latency** | `wrk -t2 -c10 -d10s http://localhost:3000/api 2>&1 \| grep 'Avg Lat' \| awk '{print $2}'` | ms | lower |
+
+Each command outputs a single number. Claude parses this to make keep/discard decisions.
 
 ### TSV format specification
 
@@ -575,6 +655,32 @@ Every successful change is committed before verification. Failures are reverted.
 ### 7. Honest Limitations
 
 If the agent hits a wall — missing permissions, an external dependency, or a decision requiring human judgment — it says so clearly instead of guessing or silently degrading. Trust the discard mechanism.
+
+---
+
+### Working with noisy metrics
+
+Some metrics fluctuate between runs (benchmark times, Lighthouse scores, ML loss). Configure noise handling:
+
+```
+/autoresearch
+Goal: Reduce API response time below 100ms
+Verify: wrk -t2 -c10 -d10s http://localhost:3000/api 2>&1 | grep 'Avg Lat' | awk '{print $2}'
+Noise: high          # run verify 3 times, use median
+Min-Delta: 5.0       # only keep if improvement > 5ms
+Noise-Runs: 5        # use 5 runs instead of default 3
+```
+
+| Metric Type | Noise Level | Recommended Config |
+|-------------|-------------|-------------------|
+| Test coverage | None | No config needed |
+| Bundle size | None | No config needed |
+| Benchmark time | Medium | `Noise: high` |
+| Lighthouse score | Medium | `Noise: high` + `Noise-Runs: 5` |
+| ML training loss | High | `Noise: high` + `Min-Delta: 0.01` + environment pinning |
+| API latency | High | `Noise: high` + `Min-Delta: 5.0` + warm-up |
+
+For detailed noise handling strategies (multi-run, confirmation runs, environment pinning), see the [autonomous loop protocol](../skills/autoresearch/references/autonomous-loop-protocol.md#phase-51-noise-handling).
 
 ---
 

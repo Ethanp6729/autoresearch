@@ -1,7 +1,7 @@
 ---
 name: autoresearch
 description: Autonomous Goal-directed Iteration. Apply Karpathy's autoresearch principles to ANY task. Loops autonomously — modify, verify, keep/discard, repeat. Supports bounded iteration via Iterations: N inline config.
-version: 1.7.4
+version: 1.7.5
 ---
 
 # Claude Autoresearch — Autonomous Goal-directed Iteration
